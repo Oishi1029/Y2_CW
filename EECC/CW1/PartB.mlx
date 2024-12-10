@@ -1,0 +1,103 @@
+% Define the numerator and denominator coefficients
+numerator = [5 35 60]; % Coefficients of 5s^2 + 35s + 60
+denominator = [1 13 59 87]; % Coefficients of s^3 + 13s^2 + 59s + 87
+
+% Create the transfer function
+H = tf(numerator, denominator);
+
+% Display the transfer function (optional)
+% disp('The transfer function is:');
+% disp(H);
+
+% Plot the step response
+figure;
+step(H);
+title('Step Response of the Transfer Function');
+xlabel('Time (seconds)');
+ylabel('Amplitude');
+grid on;
+
+% 4. Find the poles and zeros of the plant
+poles = pole(H);
+zeros = zero(H);
+
+disp('Poles of the system:');
+disp(poles);
+
+disp('Zeros of the system:');
+disp(zeros);
+
+% 5. Plot the locations of poles and zeros on the s-plane with enhanced visibility
+figure;
+hold on; % Retain plots so that multiple plot commands can overlay
+
+% Plot zeros
+if ~isempty(zeros)
+    plot(real(zeros), imag(zeros), 'go', 'MarkerSize', 12, 'LineWidth', 2, 'DisplayName', 'Zeros'); 
+    % 'go' specifies green circles
+end
+
+% Plot poles
+if ~isempty(poles)
+    plot(real(poles), imag(poles), 'rx', 'MarkerSize', 12, 'LineWidth', 2, 'DisplayName', 'Poles'); 
+    % 'rx' specifies red crosses
+end
+
+% Enhance the plot
+title('Pole-Zero Map');
+xlabel('Real Axis');
+ylabel('Imaginary Axis');
+legend('Location', 'best'); % Automatically places the legend in the best location
+grid on;
+axis equal; % Ensures that the scale is the same on both axes
+
+hold off; % Release the plot
+
+% 6. Find damping factor, natural frequency, decay rate, and damped frequency
+[wn, zeta, poles_damp] = damp(H);
+
+disp('Natural Frequencies (rad/s):');
+disp(wn);
+
+disp('Damping Factors:');
+disp(zeta);
+
+% Calculate Decay Rate and Damped Frequency
+decay_rate = zeta .* wn;             % Decay rate (sigma)
+damped_freq = wn .* sqrt(1 - zeta.^2); % Damped frequency (wd)
+
+disp('Decay Rates (rad/s):');
+disp(decay_rate);
+
+disp('Damped Frequencies (rad/s):');
+disp(damped_freq);
+
+% 7. Find rise time, peak time, settling time, and maximum percent overshoot
+info = stepinfo(H);
+
+disp('Rise Time (s):');
+disp(info.RiseTime);
+
+disp('Peak Time (s):');
+disp(info.PeakTime);
+
+disp('Settling Time (s):');
+disp(info.SettlingTime);
+
+disp('Maximum Percent Overshoot (%):');
+disp(info.Overshoot);
+
+% 8. Generate the Bode plot and find gain margin and phase margin
+figure;
+margin(H); % This will plot the Bode plot and display gain/phase margins
+[gm, pm, ~, ~] = margin(H);
+
+disp('Gain Margin (dB):');
+disp(20*log10(gm)); % Convert to dB
+
+disp('Phase Margin (deg):');
+disp(pm);
+
+
+
+
