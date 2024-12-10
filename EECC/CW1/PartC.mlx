@@ -1,0 +1,262 @@
+%% Part C: Controllers Design Using MATLAB Live Code
+
+% This live script designs PI, PD, and PID controllers for a given plant to eliminate
+% steady-state error while achieving a settling time of < 0.5 seconds and an
+% overshoot of ≤ 4%. It also compares the performance of the controlled systems
+% with the original plant.
+
+%% Part B: Define the Plant Transfer Function
+
+% Define the numerator and denominator coefficients from Part B
+numerator = [5 35 60];          % Coefficients of 5s^2 + 35s + 60
+denominator = [1 13 59 87];     % Coefficients of s^3 + 13s^2 + 59s + 87
+
+% Create the transfer function of the plant
+H = tf(numerator, denominator);
+
+% Display the plant transfer function
+disp('The plant transfer function H(s):');
+disp(H);
+
+%% Part B: Step Response of the Plant
+
+% Plot the step response of the plant
+figure;
+stepplot_handle = stepplot(H);
+title('Step Response of the Plant');
+xlabel('Time (seconds)');
+ylabel('Amplitude');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+%% Part B: Poles and Zeros of the Plant
+
+% Find the poles and zeros of the plant
+poles = pole(H);
+zeros = zero(H);
+
+% Display the poles and zeros
+disp('Poles of the plant:');
+disp(poles);
+
+disp('Zeros of the plant:');
+disp(zeros);
+
+% Plot the pole-zero map
+figure;
+pzmap(H);
+title('Pole-Zero Map of the Plant');
+xlabel('Real Axis');
+ylabel('Imaginary Axis');
+grid on;
+axis equal; % Ensure equal scaling on both axes
+
+%% Part B: Damping Characteristics of the Plant
+
+% Calculate damping factors, natural frequencies, and damped frequencies
+[wn, zeta, poles_damp] = damp(H);
+
+% Display the damping characteristics
+disp('Natural Frequencies (rad/s):');
+disp(wn);
+
+disp('Damping Factors:');
+disp(zeta);
+
+% Calculate decay rates and damped frequencies
+decay_rate = zeta .* wn;                      % Decay rate (sigma)
+damped_freq = wn .* sqrt(1 - zeta.^2);        % Damped frequency (wd)
+
+disp('Decay Rates (rad/s):');
+disp(decay_rate);
+
+disp('Damped Frequencies (rad/s):');
+disp(damped_freq);
+
+%% Part B: Step Response Characteristics of the Plant
+
+% Obtain step response characteristics
+info_plant = stepinfo(H);
+
+% Display the step response characteristics
+disp('Rise Time (s):');
+disp(info_plant.RiseTime);
+
+disp('Peak Time (s):');
+disp(info_plant.PeakTime);
+
+disp('Settling Time (s):');
+disp(info_plant.SettlingTime);
+
+disp('Maximum Percent Overshoot (%):');
+disp(info_plant.Overshoot);
+
+% Calculate steady-state error for step input
+ess_step_plant = 1 - dcgain(H); % Since T(s) = y(s)/r(s), ess = 1 - T(0)
+
+disp('Steady-State Error for Step Input:');
+disp(ess_step_plant);
+
+%% Part B: Bode Plot and Margins of the Plant
+
+% Plot the Bode plot with gain and phase margins
+figure;
+margin_handle = margin(H);
+title('Bode Plot of the Plant');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+% Calculate gain margin and phase margin
+[gm, pm, wcg, wcp] = margin(H);
+
+% Display gain margin and phase margin
+disp('Gain Margin (dB):');
+if isinf(gm)
+    disp('Inf');
+else
+    disp(20*log10(gm));
+end
+
+disp('Phase Margin (deg):');
+if isinf(pm)
+    disp('Inf');
+else
+    disp(pm);
+end
+
+%% Part C: Controller Design
+
+% Design a PI Controller using pidtune
+C_PI = pidtune(H, 'PI');
+
+disp('PI Controller:');
+disp(C_PI);
+
+% Design a PD Controller using pidtune
+C_PD = pidtune(H, 'PD');
+
+disp('PD Controller:');
+disp(C_PD);
+
+% Design a PID Controller using pidtune
+C_PID = pidtune(H, 'PID');
+
+disp('PID Controller:');
+disp(C_PID);
+
+%% Part C: Closed-Loop Transfer Functions
+
+% Create closed-loop transfer functions for each controller with unity feedback
+T_PI = feedback(C_PI * H, 1);
+T_PD = feedback(C_PD * H, 1);
+T_PID = feedback(C_PID * H, 1);
+
+% Display the closed-loop transfer functions
+disp('Closed-Loop Transfer Function with PI Controller:');
+disp(T_PI);
+
+disp('Closed-Loop Transfer Function with PD Controller:');
+disp(T_PD);
+
+disp('Closed-Loop Transfer Function with PID Controller:');
+disp(T_PID);
+
+%% Part C: Poles and Zeros of Closed-Loop Systems
+
+% Poles and zeros for PI Controller
+poles_PI = pole(T_PI);
+zeros_PI = zero(T_PI);
+
+disp('Poles of Closed-Loop System with PI Controller:');
+disp(poles_PI);
+
+disp('Zeros of Closed-Loop System with PI Controller:');
+disp(zeros_PI);
+
+% Poles and zeros for PD Controller
+poles_PD = pole(T_PD);
+zeros_PD = zero(T_PD);
+
+disp('Poles of Closed-Loop System with PD Controller:');
+disp(poles_PD);
+
+disp('Zeros of Closed-Loop System with PD Controller:');
+disp(zeros_PD);
+
+% Poles and zeros for PID Controller
+poles_PID = pole(T_PID);
+zeros_PID = zero(T_PID);
+
+disp('Poles of Closed-Loop System with PID Controller:');
+disp(poles_PID);
+
+disp('Zeros of Closed-Loop System with PID Controller:');
+disp(zeros_PID);
+
+%% Part C: Step Responses of Controlled Systems
+
+% Plot step responses of the controlled systems
+figure;
+hold on;
+
+% Plot PI Controller Step Response
+h_PI = stepplot(T_PI);
+set(findobj(gcf,'Type','Line'),'Color', 'r', 'LineWidth',1.5);
+
+% Plot PD Controller Step Response
+h_PD = stepplot(T_PD);
+set(findobj(gcf,'Type','Line'),'Color', 'g', 'LineWidth',1.5);
+
+% Plot PID Controller Step Response
+h_PID = stepplot(T_PID);
+set(findobj(gcf,'Type','Line'),'Color', 'b', 'LineWidth',1.5);
+
+title('Step Responses of Controlled Systems');
+xlabel('Time (seconds)');
+ylabel('Amplitude');
+legend('PI Controller', 'PD Controller', 'PID Controller', 'Location', 'best');
+grid on;
+hold off;
+
+%% Part C: Bode Plots of Controlled Systems
+
+% Plot Bode plots of the controlled systems together
+figure;
+bodeplot(T_PI, T_PD, T_PID);
+title('Bode Plots of Controlled Systems');
+legend('PI Controller', 'PD Controller', 'PID Controller', 'Location', 'best');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+%% Part C: Performance Metrics Comparison
+
+% Obtain step response characteristics for each controlled system
+info_PI = stepinfo(T_PI);
+info_PD = stepinfo(T_PD);
+info_PID = stepinfo(T_PID);
+
+% Calculate steady-state errors for each controlled system
+ess_step_PI = 1 - dcgain(T_PI);
+ess_step_PD = 1 - dcgain(T_PD);
+ess_step_PID = 1 - dcgain(T_PID);
+
+% Create a table to compare performance metrics
+PerformanceTable = table(...
+    {'Plant'; 'PI Controller'; 'PD Controller'; 'PID Controller'},...
+    [info_plant.RiseTime; info_PI.RiseTime; info_PD.RiseTime; info_PID.RiseTime],...
+    [info_plant.PeakTime; info_PI.PeakTime; info_PD.PeakTime; info_PID.PeakTime],...
+    [info_plant.SettlingTime; info_PI.SettlingTime; info_PD.SettlingTime; info_PID.SettlingTime],...
+    [info_plant.Overshoot; info_PI.Overshoot; info_PD.Overshoot; info_PID.Overshoot],...
+    [ess_step_plant; ess_step_PI; ess_step_PD; ess_step_PID],...
+    'VariableNames', {'System', 'RiseTime(s)', 'PeakTime(s)', 'SettlingTime(s)', 'Overshoot(%)', 'SteadyStateError'});
+
+% Display the performance comparison table
+disp('Performance Metrics Comparison:');
+disp(PerformanceTable);
+
