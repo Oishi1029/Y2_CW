@@ -1,0 +1,341 @@
+%% Part C: Controllers Design Using MATLAB Live Code with Iterative Tuning
+
+% This live script designs a PID controller for a given plant to eliminate
+% steady-state error while achieving a settling time of < 0.5 seconds and an
+% overshoot of ≤ 4%. It iteratively tunes the controller using optimization
+% to meet the specified performance criteria.
+
+%% Clear Workspace and Command Window
+clear;
+clc;
+
+%% Part B: Define the Plant Transfer Function
+
+% Define the numerator and denominator coefficients from Part B
+numerator = [5 35 60];          % Coefficients of 5s^2 + 35s + 60
+denominator = [1 13 59 87];     % Coefficients of s^3 + 13s^2 + 59s + 87
+
+% Create the transfer function of the plant
+H = tf(numerator, denominator);
+
+% Display the plant transfer function
+disp('The plant transfer function H(s):');
+disp(H);
+
+%% Part B: Step Response of the Plant
+
+% Plot the step response of the plant
+figure;
+stepplot_handle = stepplot(H);
+title('Step Response of the Plant');
+xlabel('Time (seconds)');
+ylabel('Amplitude');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+%% Part B: Poles and Zeros of the Plant
+
+% Find the poles and zeros of the plant
+poles = pole(H);
+zeros = zero(H);
+
+% Display the poles and zeros
+disp('Poles of the plant:');
+disp(poles);
+
+disp('Zeros of the plant:');
+disp(zeros);
+
+% Plot the pole-zero map
+figure;
+pzmap(H);
+title('Pole-Zero Map of the Plant');
+xlabel('Real Axis');
+ylabel('Imaginary Axis');
+grid on;
+axis equal; % Ensure equal scaling on both axes
+
+%% Part B: Damping Characteristics of the Plant
+
+% Calculate damping factors, natural frequencies, and damped frequencies
+[wn, zeta, poles_damp] = damp(H);
+
+% Display the damping characteristics
+disp('Natural Frequencies (rad/s):');
+disp(wn);
+
+disp('Damping Factors:');
+disp(zeta);
+
+% Calculate decay rates and damped frequencies
+decay_rate = zeta .* wn;                      % Decay rate (sigma)
+damped_freq = wn .* sqrt(1 - zeta.^2);        % Damped frequency (wd)
+
+disp('Decay Rates (rad/s):');
+disp(decay_rate);
+
+disp('Damped Frequencies (rad/s):');
+disp(damped_freq);
+
+%% Part B: Step Response Characteristics of the Plant
+
+% Obtain step response characteristics
+info_plant = stepinfo(H);
+
+% Display the step response characteristics
+disp('Rise Time (s):');
+disp(info_plant.RiseTime);
+
+disp('Peak Time (s):');
+disp(info_plant.PeakTime);
+
+disp('Settling Time (s):');
+disp(info_plant.SettlingTime);
+
+disp('Maximum Percent Overshoot (%):');
+disp(info_plant.Overshoot);
+
+% Calculate steady-state error for step input
+ess_step_plant = 1 - dcgain(H); % Since T(s) = y(s)/r(s), ess = 1 - T(0)
+
+disp('Steady-State Error for Step Input:');
+disp(ess_step_plant);
+
+%% Part B: Bode Plot and Margins of the Plant
+
+% Plot the Bode plot with gain and phase margins
+figure;
+margin_handle = margin(H);
+title('Bode Plot of the Plant');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+% Calculate gain margin and phase margin
+[gm, pm, wcg, wcp] = margin(H);
+
+% Display gain margin and phase margin
+disp('Gain Margin (dB):');
+if isinf(gm)
+    disp('Inf');
+else
+    disp(20*log10(gm));
+end
+
+disp('Phase Margin (deg):');
+if isinf(pm)
+    disp('Inf');
+else
+    disp(pm);
+end
+
+%% Part C: Initial PID Controller Design Using pidtune
+
+% Design an initial PID Controller using pidtune
+opts = pidtuneOptions('PhaseMargin', 60); % Initial phase margin
+
+C_PID_initial = pidtune(H, 'PID', opts);
+
+disp('Initial PID Controller:');
+disp(C_PID_initial);
+
+% Create the initial closed-loop transfer function with the PID controller
+T_PID_initial = feedback(C_PID_initial * H, 1);
+
+% Obtain initial step response characteristics
+info_PID_initial = stepinfo(T_PID_initial);
+ess_step_PID_initial = 1 - dcgain(T_PID_initial);
+
+%% Part C: Optimization-Based PID Tuning
+
+% Desired Specifications
+Ts_desired = 0.5;    % Settling Time < 0.5 seconds
+OS_desired = 4;      % Overshoot <= 4%
+ess_desired = 0;     % Steady-State Error = 0
+
+% Define the cost function for optimization
+% The cost function penalizes violations of the specifications
+costFunction = @(K) pid_cost_function(K, H, Ts_desired, OS_desired, ess_desired);
+
+% Initial Guess for [Kp, Ki, Kd] from the initial PID controller
+initial_guess = [C_PID_initial.Kp, C_PID_initial.Ki, C_PID_initial.Kd];
+
+% Define lower and upper bounds for Kp, Ki, Kd
+% These bounds can be adjusted based on system requirements
+lb = [0, 0, 0];          % Kp, Ki, Kd >= 0
+ub = [1000, 1000, 1000]; % Arbitrary upper bounds
+
+% Set optimization options
+options = optimoptions('fmincon','Display','iter','Algorithm','sqp');
+
+% Perform the optimization using fmincon
+[K_opt, fval, exitflag, output] = fmincon(costFunction, initial_guess, [], [], [], [], lb, ub, [], options);
+
+% Extract optimized PID parameters
+Kp_opt = K_opt(1);
+Ki_opt = K_opt(2);
+Kd_opt = K_opt(3);
+
+% Create the optimized PID controller
+C_PID_opt = pid(Kp_opt, Ki_opt, Kd_opt);
+
+disp('Optimized PID Controller:');
+disp(C_PID_opt);
+
+% Create the closed-loop transfer function with the optimized PID controller
+T_PID_opt = feedback(C_PID_opt * H, 1);
+
+% Obtain step response characteristics for the optimized controller
+info_PID_opt = stepinfo(T_PID_opt);
+ess_step_PID_opt = 1 - dcgain(T_PID_opt);
+
+%% Part C: Verify Specifications for Optimized Controller
+
+% Function to verify if the specifications are met
+function cost = pid_cost_function(K, plant, Ts_desired, OS_desired, ess_desired)
+    % Extract PID gains
+    Kp = K(1);
+    Ki = K(2);
+    Kd = K(3);
+    
+    % Create PID controller
+    C = pid(Kp, Ki, Kd);
+    
+    % Create closed-loop system
+    T = feedback(C * plant, 1);
+    
+    % Compute step response characteristics
+    info = stepinfo(T);
+    ess = abs(1 - dcgain(T)); % Absolute steady-state error
+    
+    % Initialize cost
+    cost = 0;
+    
+    % Penalize Settling Time if it exceeds the desired value
+    if info.SettlingTime > Ts_desired
+        cost = cost + 1000*(info.SettlingTime - Ts_desired)^2;
+    end
+    
+    % Penalize Overshoot if it exceeds the desired value
+    if info.Overshoot > OS_desired
+        cost = cost + 1000*(info.Overshoot - OS_desired)^2;
+    end
+    
+    % Penalize Steady-State Error if it exceeds a small threshold
+    % Since exact zero is unattainable, we set a small epsilon
+    epsilon = 1e-3;
+    if ess > epsilon
+        cost = cost + 1000*(ess - ess_desired)^2;
+    end
+    
+    % Additionally, you can add penalties for excessively high gains
+    if Kp > 500 || Ki > 500 || Kd > 500
+        cost = cost + 1000*(Kp + Ki + Kd);
+    end
+end
+
+%% Part C: Closed-Loop Transfer Functions
+
+% Create closed-loop transfer functions
+T_PID_initial = feedback(C_PID_initial * H, 1);
+T_PID_optimized = feedback(C_PID_opt * H, 1);
+
+% Display the closed-loop transfer functions
+disp('Closed-Loop Transfer Function with Initial PID Controller:');
+disp(T_PID_initial);
+
+disp('Closed-Loop Transfer Function with Optimized PID Controller:');
+disp(T_PID_optimized);
+
+%% Part C: Step Responses of Controlled Systems
+
+% Plot step responses of the initial and optimized PID controllers
+figure;
+hold on;
+
+% Plot Initial PID Controller Step Response
+h_PID_initial = stepplot(T_PID_initial);
+set(findobj(gcf,'Type','Line','Color','b'),'Color', 'r', 'LineWidth',1.5);
+
+% Plot Optimized PID Controller Step Response
+h_PID_opt = stepplot(T_PID_optimized);
+set(findobj(gcf,'Type','Line','Color','b'),'Color', 'g', 'LineWidth',1.5);
+
+title('Step Responses of PID Controllers');
+xlabel('Time (seconds)');
+ylabel('Amplitude');
+legend('Initial PID Controller', 'Optimized PID Controller', 'Location', 'best');
+grid on;
+hold off;
+
+%% Part C: Bode Plots of Controlled Systems
+
+% Plot Bode plots of the initial and optimized PID controllers together
+figure;
+bodeplot(T_PID_initial, T_PID_opt);
+title('Bode Plots of PID Controllers');
+legend('Initial PID Controller', 'Optimized PID Controller', 'Location', 'best');
+grid on;
+
+% Customize the line width for better visibility
+set(findall(gcf,'Type','Line'),'LineWidth',1.5);
+
+%% Part C: Performance Metrics Comparison
+
+% Create a table to compare performance metrics
+PerformanceTable = table(...
+    {'Plant'; 'Initial PID Controller'; 'Optimized PID Controller'},...
+    [info_plant.RiseTime; info_PID_initial.RiseTime; info_PID_opt.RiseTime],...
+    [info_plant.PeakTime; info_PID_initial.PeakTime; info_PID_opt.PeakTime],...
+    [info_plant.SettlingTime; info_PID_initial.SettlingTime; info_PID_opt.SettlingTime],...
+    [info_plant.Overshoot; info_PID_initial.Overshoot; info_PID_opt.Overshoot],...
+    [ess_step_plant; ess_step_PID_initial; ess_step_PID_opt],...
+    'VariableNames', {'System', 'RiseTime(s)', 'PeakTime(s)', 'SettlingTime(s)', 'Overshoot(%)', 'SteadyStateError'});
+
+% Display the performance comparison table
+disp('Performance Metrics Comparison:');
+disp(PerformanceTable);
+
+%% Part C: Verify Specifications
+
+% Verify specifications for Plant
+verifySpecs(info_plant, ess_step_plant, 'Plant');
+
+% Verify specifications for Initial PID Controller
+verifySpecs(info_PID_initial, ess_step_PID_initial, 'Initial PID Controller');
+
+% Verify specifications for Optimized PID Controller
+verifySpecs(info_PID_opt, ess_step_PID_opt, 'Optimized PID Controller');
+
+%% Part C: Function Definitions
+
+% Function to verify if the specifications are met
+function verifySpecs(info, ess, systemName)
+    Ts = info.SettlingTime;
+    OS = info.Overshoot;
+    ess_val = ess;
+    
+    fprintf('\nVerification for %s:\n', systemName);
+    if Ts < 0.5
+        fprintf('Settling Time: %.3f s (OK)\n', Ts);
+    else
+        fprintf('Settling Time: %.3f s (NOT OK)\n', Ts);
+    end
+    
+    if OS <= 4
+        fprintf('Overshoot: %.2f%% (OK)\n', OS);
+    else
+        fprintf('Overshoot: %.2f%% (NOT OK)\n', OS);
+    end
+    
+    if abs(ess_val) < 1e-3
+        fprintf('Steady-State Error: %.5f (OK)\n', ess_val);
+    else
+        fprintf('Steady-State Error: %.5f (NOT OK)\n', ess_val);
+    end
+end
+
+
